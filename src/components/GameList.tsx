@@ -1,0 +1,148 @@
+import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import type { Game, Profile } from '../lib/types'
+import { NewGameDialog } from './NewGameDialog'
+
+interface GameListProps {
+  games: Game[]
+  profile: Profile | null
+  userId: string
+  onCreateGame: (emojiCode: string) => Promise<{ error: Error | null; gameId?: string }>
+  onSignOut: () => void
+}
+
+export function GameList({ games, profile, userId, onCreateGame, onSignOut }: GameListProps) {
+  const [showNewGame, setShowNewGame] = useState(false)
+  const [copied, setCopied] = useState(false)
+  const navigate = useNavigate()
+
+  const copyEmojiCode = () => {
+    if (!profile) return
+    navigator.clipboard.writeText(profile.emoji_code)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 2000)
+  }
+
+  const getOpponent = (game: Game): Profile | undefined => {
+    return game.player1_id === userId ? game.player2 : game.player1
+  }
+
+  const isYourTurn = (game: Game): boolean => {
+    const turn = game.latest_turn
+    if (!turn) return false
+    if (turn.phase === 'complete') return false
+    if ((turn.phase === 'picking' || turn.phase === 'drawing') && turn.drawer_id === userId) return true
+    if (turn.phase === 'guessing' && turn.guesser_id === userId) return true
+    return false
+  }
+
+  const getTurnLabel = (game: Game): string => {
+    const turn = game.latest_turn
+    if (!turn) return ''
+    if (turn.phase === 'complete') {
+      return turn.guessed_correctly ? 'Guessed it!' : 'Not quite...'
+    }
+    if (isYourTurn(game)) {
+      if (turn.phase === 'picking') return 'Pick a word'
+      if (turn.phase === 'drawing') return 'Your turn to draw'
+      if (turn.phase === 'guessing') return 'Your turn to guess'
+    }
+    return 'Waiting for them...'
+  }
+
+  return (
+    <div className="min-h-full bg-slate-900">
+      {/* Header */}
+      <div className="sticky top-0 bg-slate-900/95 backdrop-blur border-b border-slate-800 px-4 py-3">
+        <div className="flex items-center justify-between max-w-lg mx-auto">
+          <h1 className="text-xl font-bold text-white">Pictionary</h1>
+          <button
+            onClick={onSignOut}
+            className="text-sm text-slate-400 hover:text-white transition-colors"
+          >
+            Sign out
+          </button>
+        </div>
+      </div>
+
+      <div className="max-w-lg mx-auto px-4 py-6 space-y-6">
+        {/* Profile card */}
+        {profile && (
+          <div className="bg-slate-800 rounded-2xl p-4 space-y-2">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-white font-medium">{profile.display_name || profile.emoji_code}</p>
+                <p className="text-slate-400 text-sm">Your code</p>
+              </div>
+              <button
+                onClick={copyEmojiCode}
+                className="text-2xl bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded-xl transition-colors"
+              >
+                {copied ? '✓' : profile.emoji_code}
+              </button>
+            </div>
+            <p className="text-xs text-slate-500">Share your emoji code so others can start a game with you</p>
+          </div>
+        )}
+
+        {/* New game button */}
+        <button
+          onClick={() => setShowNewGame(true)}
+          className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-medium rounded-xl transition-colors"
+        >
+          New game
+        </button>
+
+        {/* Game list */}
+        {games.length === 0 ? (
+          <p className="text-center text-slate-500 py-8">
+            No games yet. Start one by sharing your emoji code!
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {games.map(game => {
+              const opponent = getOpponent(game)
+              const yourTurn = isYourTurn(game)
+              return (
+                <button
+                  key={game.id}
+                  onClick={() => navigate(`/game/${game.id}`)}
+                  className="w-full bg-slate-800 hover:bg-slate-750 rounded-2xl p-4 flex items-center gap-4 transition-colors text-left"
+                >
+                  <div className="text-2xl shrink-0">
+                    {opponent?.emoji_code ?? '???'}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-white font-medium truncate">
+                      {opponent?.display_name || opponent?.emoji_code || 'Unknown'}
+                    </p>
+                    <p className={`text-sm ${yourTurn ? 'text-indigo-400 font-medium' : 'text-slate-400'}`}>
+                      {getTurnLabel(game)}
+                    </p>
+                  </div>
+                  {yourTurn && (
+                    <div className="w-3 h-3 bg-indigo-500 rounded-full shrink-0" />
+                  )}
+                </button>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
+      {showNewGame && (
+        <NewGameDialog
+          onClose={() => setShowNewGame(false)}
+          onCreateGame={async (code) => {
+            const result = await onCreateGame(code)
+            if (!result.error && result.gameId) {
+              setShowNewGame(false)
+              navigate(`/game/${result.gameId}`)
+            }
+            return result
+          }}
+        />
+      )}
+    </div>
+  )
+}
