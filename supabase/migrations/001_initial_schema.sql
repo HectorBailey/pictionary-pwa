@@ -48,15 +48,19 @@ CREATE POLICY "Users can update own profile"
   TO authenticated
   USING (auth.uid() = id);
 
+CREATE POLICY "Service role can insert profiles"
+  ON profiles FOR INSERT
+  WITH CHECK (true);
+
 -- Auto-create profile on signup
 CREATE OR REPLACE FUNCTION handle_new_user()
 RETURNS trigger AS $$
 BEGIN
-  INSERT INTO profiles (id, display_name)
+  INSERT INTO public.profiles (id, display_name)
   VALUES (NEW.id, COALESCE(NEW.raw_user_meta_data->>'display_name', ''));
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public;
 
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
