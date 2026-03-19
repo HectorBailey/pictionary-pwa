@@ -253,7 +253,14 @@ export function useTurn(gameId: string | undefined, userId: string | undefined) 
         drawer_points: 0,
         guesser_points: 0,
       })
-    if (!error) await fetchTurn()
+    if (!error) {
+      // Clear strokes from the completed turn to save storage
+      await supabase
+        .from('turns')
+        .update({ strokes: [], word_options: [] })
+        .eq('id', turn.id)
+      await fetchTurn()
+    }
     return { error }
   }
 
