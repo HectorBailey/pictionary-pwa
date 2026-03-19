@@ -35,15 +35,19 @@ export function useGames(userId: string | undefined) {
         if (!latestTurnByGame.has(turn.game_id)) {
           latestTurnByGame.set(turn.game_id, turn)
         }
-        // Tally scores - guesser wins when guessed correctly
-        if (turn.phase === 'complete' && turn.guessed_correctly) {
+        // Tally scores - both drawer and guesser can earn points
+        if (turn.phase === 'complete') {
           const scores = scoresByGame.get(turn.game_id) ?? { player1_wins: 0, player2_wins: 0 }
           const game = data.find(g => g.id === turn.game_id)
+          const gPts = turn.guesser_points || 0
+          const dPts = turn.drawer_points || 0
           if (game) {
             if (turn.guesser_id === game.player1_id) {
-              scores.player1_wins++
+              scores.player1_wins += gPts
+              scores.player2_wins += dPts
             } else {
-              scores.player2_wins++
+              scores.player2_wins += gPts
+              scores.player1_wins += dPts
             }
             scoresByGame.set(turn.game_id, scores)
           }

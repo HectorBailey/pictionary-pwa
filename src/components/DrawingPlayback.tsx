@@ -4,28 +4,42 @@ import type { Stroke } from '../lib/types'
 interface DrawingPlaybackProps {
   strokes: Stroke[]
   onAnimationComplete?: () => void
+  slow?: boolean
 }
 
-export function DrawingPlayback({ strokes, onAnimationComplete }: DrawingPlaybackProps) {
+export function DrawingPlayback({ strokes, onAnimationComplete, slow }: DrawingPlaybackProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
-  const [progress, setProgress] = useState(0)
+  const [done, setDone] = useState(false)
   const animRef = useRef<number | null>(null)
-  const completeCalled = useRef(false)
+  const progressRef = useRef(0)
 
-  const totalPoints = strokes.reduce((sum, s) => sum + s.points.length, 0)
+  // Store strokes and callback in refs so the animation effect doesn't restart
+  // when realtime refetches give us a new array reference with the same data
+  const strokesRef = useRef(strokes)
+  strokesRef.current = strokes
+  const onCompleteRef = useRef(onAnimationComplete)
+  onCompleteRef.current = onAnimationComplete
+
+  // Stable totalPoints — only recompute from the initial strokes
+  const totalPointsRef = useRef(0)
+  const [animKey] = useState(() => JSON.stringify(strokes.map(s => s.points.length)))
+  useEffect(() => {
+    totalPointsRef.current = strokes.reduce((sum, s) => sum + s.points.length, 0)
+  }, [animKey]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const drawUpTo = useCallback((pointCount: number) => {
     const canvas = canvasRef.current
     if (!canvas) return
     const ctx = canvas.getContext('2d')
     if (!ctx) return
+    const currentStrokes = strokesRef.current
 
     ctx.fillStyle = '#ffffff'
     ctx.fillRect(0, 0, canvas.width, canvas.height)
 
     let remaining = pointCount
-    for (const stroke of strokes) {
+    for (const stroke of currentStrokes) {
       if (remaining <= 0) break
       const pts = stroke.points.slice(0, remaining)
       remaining -= stroke.points.length
@@ -43,7 +57,7 @@ export function DrawingPlayback({ strokes, onAnimationComplete }: DrawingPlaybac
       }
       ctx.stroke()
     }
-  }, [strokes])
+  }, []) // stable — reads strokes from ref
 
   // Resize canvas
   useEffect(() => {
@@ -56,32 +70,39 @@ export function DrawingPlayback({ strokes, onAnimationComplete }: DrawingPlaybac
       canvas.height = rect.height
       canvas.style.width = `${rect.width}px`
       canvas.style.height = `${rect.height}px`
-      drawUpTo(progress)
+      drawUpTo(progressRef.current)
     }
 
     resize()
     window.addEventListener('resize', resize)
     return () => window.removeEventListener('resize', resize)
-  }, [drawUpTo, progress])
+  }, [drawUpTo])
 
-  // Animate playback - slower: ~8 seconds at 60fps
+  // Animate playback — only restarts when animKey changes (actual stroke data differs)
   useEffect(() => {
+    const totalPoints = totalPointsRef.current
     if (totalPoints === 0) return
-    setProgress(0)
-    completeCalled.current = false
+    progressRef.current = 0
+    setDone(false)
 
-    const speed = Math.max(1, Math.ceil(totalPoints / 480))
-    let current = 0
+    const DURATION_FRAMES = slow ? 900 : 600
+    let frame = 0
+    let called = false
 
     const animate = () => {
-      current = Math.min(current + speed, totalPoints)
-      setProgress(current)
+      frame++
+      const t = Math.min(frame / DURATION_FRAMES, 1)
+      const current = Math.round(t * totalPoints)
+      progressRef.current = current
       drawUpTo(current)
-      if (current < totalPoints) {
+      if (frame < DURATION_FRAMES) {
         animRef.current = requestAnimationFrame(animate)
-      } else if (!completeCalled.current) {
-        completeCalled.current = true
-        onAnimationComplete?.()
+      } else {
+        setDone(true)
+        if (!called) {
+          called = true
+          onCompleteRef.current?.()
+        }
       }
     }
 
@@ -89,7 +110,7 @@ export function DrawingPlayback({ strokes, onAnimationComplete }: DrawingPlaybac
     return () => {
       if (animRef.current) cancelAnimationFrame(animRef.current)
     }
-  }, [totalPoints, drawUpTo, onAnimationComplete])
+  }, [animKey, drawUpTo, slow]) // only restart when stroke data actually changes
 
   return (
     <div ref={containerRef} className="relative w-full aspect-square max-h-[60vh] bg-white rounded-xl overflow-hidden">
@@ -97,9 +118,9 @@ export function DrawingPlayback({ strokes, onAnimationComplete }: DrawingPlaybac
         ref={canvasRef}
         className="absolute inset-0"
       />
-      {progress < totalPoints && (
+      {!done && (
         <div className="absolute bottom-2 right-2 bg-black/50 text-white text-xs px-2 py-1 rounded-full">
-          Drawing...
+          {slow ? 'Slow drawing...' : 'Drawing...'}
         </div>
       )}
     </div>

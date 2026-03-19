@@ -1,10 +1,12 @@
-import { useCallback } from 'react'
+import { useCallback, useState, useRef, useEffect } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useTurn } from '../hooks/useTurn'
+import { SABOTAGE_LABELS } from '../lib/types'
 import { WordPicker } from './WordPicker'
 import { DrawingCanvas } from './DrawingCanvas'
 import { GuessInput } from './GuessInput'
 import { DrawingPlayback } from './DrawingPlayback'
+import { SabotageSpin } from './SabotageSpin'
 
 interface GameScreenProps {
   userId: string
@@ -14,9 +16,19 @@ export function GameScreen({ userId }: GameScreenProps) {
   const { gameId } = useParams<{ gameId: string }>()
   const navigate = useNavigate()
   const {
-    turn, loading, isDrawer, isGuesser,
+    turn, loading, isDrawer, isGuesser, guesserHasPendingSabotage,
     pickWord, generateWordOptions, submitDrawing, submitGuess, giveUp, createNextTurn,
   } = useTurn(gameId, userId)
+  const [showSabotageSpin, setShowSabotageSpin] = useState(true)
+  const lastSeenTurnId = useRef<string | null>(null)
+
+  // Reset sabotage spin when turn changes
+  useEffect(() => {
+    if (turn && turn.id !== lastSeenTurnId.current) {
+      lastSeenTurnId.current = turn.id
+      setShowSabotageSpin(true)
+    }
+  }, [turn])
 
   const handleGenerateOptions = useCallback(() => {
     generateWordOptions()
@@ -57,6 +69,16 @@ export function GameScreen({ userId }: GameScreenProps) {
     </div>
   )
 
+  // Show sabotage spin when drawer first sees a sabotaged turn
+  if (isDrawer && turn.sabotage && turn.phase === 'picking' && showSabotageSpin) {
+    return (
+      <SabotageSpin
+        result={turn.sabotage}
+        onDone={() => setShowSabotageSpin(false)}
+      />
+    )
+  }
+
   // DRAWER flow
   if (isDrawer) {
     if (turn.phase === 'picking') {
@@ -66,14 +88,14 @@ export function GameScreen({ userId }: GameScreenProps) {
           onPick={pickWord}
           onGenerateOptions={handleGenerateOptions}
         />,
-        'Your turn to draw'
+        turn.sabotage ? `Your turn — ${SABOTAGE_LABELS[turn.sabotage]}` : 'Your turn to draw'
       )
     }
 
     if (turn.phase === 'drawing') {
       return withHeader(
-        <DrawingCanvas word={turn.word!} onSubmit={submitDrawing} />,
-        'Drawing'
+        <DrawingCanvas word={turn.word!} onSubmit={submitDrawing} sabotage={turn.sabotage} />,
+        turn.sabotage ? SABOTAGE_LABELS[turn.sabotage] : 'Drawing'
       )
     }
 
@@ -85,6 +107,9 @@ export function GameScreen({ userId }: GameScreenProps) {
             <p className="text-2xl font-bold text-white">Drawing sent!</p>
             <p className="text-slate-400 mt-2">Waiting for them to guess...</p>
             <p className="text-slate-500 mt-1 text-sm">Word: {turn.word}</p>
+            {turn.sabotage && (
+              <p className="text-red-400 text-xs mt-1">Sabotaged: {SABOTAGE_LABELS[turn.sabotage]}</p>
+            )}
             {turn.guesses.length > 0 && (
               <div className="mt-3 space-y-1">
                 <p className="text-slate-500 text-xs">Their guesses so far:</p>
@@ -123,8 +148,9 @@ export function GameScreen({ userId }: GameScreenProps) {
           strokes={turn.strokes}
           guesses={turn.guesses}
           guessesRemaining={turn.guesses_remaining}
-          onGuess={async (guess) => {
-            const result = await submitGuess(guess)
+          hasPendingSabotage={guesserHasPendingSabotage}
+          onGuess={async (guess, elapsedSeconds, duringAnimation) => {
+            const result = await submitGuess(guess, elapsedSeconds, duringAnimation)
             return { error: result?.error, correct: result?.correct, remaining: result?.remaining }
           }}
           onTimeUp={giveUp}
@@ -153,6 +179,39 @@ export function GameScreen({ userId }: GameScreenProps) {
           <p className="text-slate-400 mt-2">
             The word was <span className="text-white font-medium">{turn.word}</span>
           </p>
+          {turn.guessed_correctly && turn.guess_time_seconds != null && (
+            <p className="text-indigo-400 mt-1 text-sm font-medium">
+              Guessed in {turn.guess_time_seconds}s
+              {turn.guesses.length > 1 && ` (${turn.guesses.length} attempts)`}
+            </p>
+          )}
+          {/* Points breakdown */}
+          {turn.guessed_correctly && (
+            <div className="mt-3 flex gap-4 justify-center text-sm">
+              <span className="text-green-400">
+                Guesser: +{turn.guesser_points}
+              </span>
+              <span className={turn.drawer_points > 0 ? 'text-green-400' : 'text-slate-500'}>
+                Drawer: +{turn.drawer_points}
+                {turn.sabotage && turn.drawer_points > 0 && ' (sabotage bonus!)'}
+              </span>
+            </div>
+          )}
+          {turn.triggers_sabotage && !turn.sabotage_target_id && (
+            <p className="text-red-400 mt-2 text-sm font-bold">
+              Sabotage triggered!
+            </p>
+          )}
+          {turn.sabotage_target_id && turn.guessed_correctly && turn.guess_time_seconds != null && turn.guess_time_seconds < 5 && turn.sabotage_target_id === turn.guesser_id && (
+            <p className="text-yellow-400 mt-2 text-sm font-bold">
+              Sabotage deflected!
+            </p>
+          )}
+          {turn.sabotage_target_id && turn.sabotage_target_id === turn.guesser_id && (!turn.guessed_correctly || (turn.guess_time_seconds != null && turn.guess_time_seconds >= 5)) && (
+            <p className="text-red-400 mt-2 text-sm font-bold">
+              Failed to deflect — sabotage incoming!
+            </p>
+          )}
           {turn.guesses.length > 0 && (
             <div className="mt-2 flex gap-2 flex-wrap justify-center">
               {turn.guesses.map((g, i) => (

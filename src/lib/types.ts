@@ -1,5 +1,28 @@
 export type TurnPhase = 'picking' | 'drawing' | 'guessing' | 'complete'
 export type GameStatus = 'active' | 'abandoned'
+export type SabotageType = 'thick_brush' | 'mirror' | 'no_eraser' | 'speed_round' | 'hard_word' | 'no_colour'
+
+export const SABOTAGE_LABELS: Record<SabotageType, string> = {
+  thick_brush: 'THICK BRUSH',
+  mirror: 'MIRROR MODE',
+  no_eraser: 'NO ERASER',
+  speed_round: 'SPEED ROUND',
+  hard_word: 'HARD WORD',
+  no_colour: 'NO COLOUR',
+}
+
+export const SABOTAGE_DESCRIPTIONS: Record<SabotageType, string> = {
+  thick_brush: 'Minimum brush size is massive',
+  mirror: 'Canvas is flipped horizontally',
+  no_eraser: 'No eraser and no undo',
+  speed_round: 'Only 15 seconds to draw',
+  hard_word: 'Word choices are extra tricky',
+  no_colour: 'Black pen only, no colours',
+}
+
+export const ALL_SABOTAGES: SabotageType[] = [
+  'thick_brush', 'mirror', 'no_eraser', 'speed_round', 'hard_word', 'no_colour',
+]
 
 export interface Profile {
   id: string
@@ -48,6 +71,13 @@ export interface Turn {
   guesses: string[]
   guesses_remaining: number
   guessed_correctly: boolean | null
+  guess_time_seconds: number | null
+  points: number
+  drawer_points: number
+  guesser_points: number
+  sabotage: SabotageType | null
+  sabotage_target_id: string | null
+  triggers_sabotage: boolean
   phase: TurnPhase
   created_at: string
 }

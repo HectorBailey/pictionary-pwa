@@ -8,6 +8,8 @@ interface ToolbarProps {
   onUndo: () => void
   onClear: () => void
   canUndo: boolean
+  disableColors?: boolean
+  disableEraser?: boolean
 }
 
 const COLORS = [
@@ -19,7 +21,7 @@ const SIZES = [3, 6, 12, 20]
 
 export function Toolbar({
   color, brushSize, tool, onColorChange, onBrushSizeChange,
-  onToolChange, onUndo, onClear, canUndo,
+  onToolChange, onUndo, onClear, canUndo, disableColors, disableEraser,
 }: ToolbarProps) {
   return (
     <div className="bg-slate-800 border-t border-slate-700 px-3 py-2 space-y-2">
@@ -29,9 +31,10 @@ export function Toolbar({
           <button
             key={c}
             onClick={() => { onColorChange(c); onToolChange('pen') }}
+            disabled={disableColors}
             className={`w-8 h-8 rounded-full border-2 transition-transform ${
               color === c && tool === 'pen' ? 'border-indigo-400 scale-110' : 'border-slate-600'
-            }`}
+            } ${disableColors ? 'opacity-30' : ''}`}
             style={{ backgroundColor: c }}
           />
         ))}
@@ -58,9 +61,10 @@ export function Toolbar({
 
         <button
           onClick={() => onToolChange(tool === 'eraser' ? 'pen' : 'eraser')}
+          disabled={disableEraser}
           className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
             tool === 'eraser' ? 'bg-indigo-600 text-white' : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-          }`}
+          } ${disableEraser ? 'opacity-30' : ''}`}
         >
           Eraser
         </button>
@@ -68,14 +72,15 @@ export function Toolbar({
         <button
           onClick={onUndo}
           disabled={!canUndo}
-          className="px-3 py-2 rounded-lg text-sm font-medium bg-slate-700 text-slate-300 hover:bg-slate-600 disabled:opacity-30 transition-colors"
+          className={`px-3 py-2 rounded-lg text-sm font-medium bg-slate-700 text-slate-300 hover:bg-slate-600 disabled:opacity-30 transition-colors`}
         >
           Undo
         </button>
 
         <button
           onClick={onClear}
-          className="px-3 py-2 rounded-lg text-sm font-medium bg-slate-700 text-slate-300 hover:bg-slate-600 transition-colors"
+          disabled={disableEraser}
+          className={`px-3 py-2 rounded-lg text-sm font-medium bg-slate-700 text-slate-300 hover:bg-slate-600 transition-colors ${disableEraser ? 'opacity-30' : ''}`}
         >
           Clear
         </button>
