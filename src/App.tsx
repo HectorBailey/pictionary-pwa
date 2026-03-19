@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { Routes, Route, Navigate } from 'react-router-dom'
 import { useAuth } from './hooks/useAuth'
 import { useProfile } from './hooks/useProfile'
@@ -10,7 +11,12 @@ import { GameScreen } from './components/GameScreen'
 export default function App() {
   const { user, loading: authLoading, sendOtp, verifyOtp, signOut } = useAuth()
   const { profile, loading: profileLoading, setUsername, needsUsername } = useProfile(user?.id)
-  const { games, createGame } = useGames(user?.id)
+  const { games, createGame, refetch, requestNotificationPermission } = useGames(user?.id)
+
+  // Request notification permission on first load
+  useEffect(() => {
+    if (user) requestNotificationPermission()
+  }, [user, requestNotificationPermission])
 
   if (authLoading || (user && profileLoading)) {
     return (
@@ -39,6 +45,7 @@ export default function App() {
             userId={user.id}
             onCreateGame={createGame}
             onSignOut={signOut}
+            onRefresh={refetch}
           />
         }
       />

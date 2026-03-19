@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { Game, Profile } from '../lib/types'
 import { NewGameDialog } from './NewGameDialog'
@@ -9,10 +9,43 @@ interface GameListProps {
   userId: string
   onCreateGame: (joinCode: string) => Promise<{ error: Error | null; gameId?: string }>
   onSignOut: () => void
+  onRefresh: () => Promise<void>
 }
 
-export function GameList({ games, profile, userId, onCreateGame, onSignOut }: GameListProps) {
+export function GameList({ games, profile, userId, onCreateGame, onSignOut, onRefresh }: GameListProps) {
   const [showNewGame, setShowNewGame] = useState(false)
+  const [pulling, setPulling] = useState(false)
+  const [pullDistance, setPullDistance] = useState(0)
+  const [refreshing, setRefreshing] = useState(false)
+  const touchStartY = useRef(0)
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  const PULL_THRESHOLD = 80
+
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    if (scrollRef.current && scrollRef.current.scrollTop === 0) {
+      touchStartY.current = e.touches[0].clientY
+      setPulling(true)
+    }
+  }, [])
+
+  const handleTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!pulling) return
+    const delta = e.touches[0].clientY - touchStartY.current
+    if (delta > 0) {
+      setPullDistance(Math.min(delta * 0.5, 120))
+    }
+  }, [pulling])
+
+  const handleTouchEnd = useCallback(async () => {
+    if (pullDistance >= PULL_THRESHOLD) {
+      setRefreshing(true)
+      await onRefresh()
+      setRefreshing(false)
+    }
+    setPulling(false)
+    setPullDistance(0)
+  }, [pullDistance, onRefresh])
   const [copied, setCopied] = useState(false)
   const navigate = useNavigate()
 
@@ -61,7 +94,23 @@ export function GameList({ games, profile, userId, onCreateGame, onSignOut }: Ga
   }
 
   return (
-    <div className="min-h-full bg-slate-900">
+    <div
+      ref={scrollRef}
+      className="min-h-full bg-slate-900 overflow-y-auto"
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+    >
+      {/* Pull to refresh indicator */}
+      {(pullDistance > 0 || refreshing) && (
+        <div
+          className="flex items-center justify-center text-slate-400 text-sm transition-all overflow-hidden"
+          style={{ height: refreshing ? 40 : pullDistance }}
+        >
+          {refreshing ? 'Refreshing...' : pullDistance >= PULL_THRESHOLD ? 'Release to refresh' : 'Pull to refresh'}
+        </div>
+      )}
+
       {/* Header */}
       <div className="sticky top-0 bg-slate-900/95 backdrop-blur border-b border-slate-800 px-4 py-3">
         <div className="flex items-center justify-between max-w-lg mx-auto">

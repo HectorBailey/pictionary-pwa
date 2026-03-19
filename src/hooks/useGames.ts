@@ -1,6 +1,17 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { supabase } from '../lib/supabase'
 import type { Game, Turn, GameScores } from '../lib/types'
+
+function notifyYourTurn(opponentName: string) {
+  if (!('Notification' in window)) return
+  if (Notification.permission !== 'granted') return
+  if (document.visibilityState === 'visible') return
+
+  new Notification('Sketchy', {
+    body: `${opponentName} has taken their turn!`,
+    icon: '/sketchy/icon-192.png',
+  })
+}
 
 export function useGames(userId: string | undefined) {
   const [games, setGames] = useState<Game[]>([])
@@ -68,6 +79,28 @@ export function useGames(userId: string | undefined) {
     fetchGames()
   }, [fetchGames])
 
+  // Track previous "your turn" state for notifications
+  const prevYourTurnIds = useRef<Set<string>>(new Set())
+
+  const checkForNotifications = useCallback((newGames: Game[]) => {
+    const newYourTurnIds = new Set<string>()
+    for (const game of newGames) {
+      const turn = game.latest_turn
+      if (!turn || turn.phase === 'complete') continue
+      const isYourTurn =
+        ((turn.phase === 'picking' || turn.phase === 'drawing') && turn.drawer_id === userId) ||
+        (turn.phase === 'guessing' && turn.guesser_id === userId)
+      if (isYourTurn) {
+        newYourTurnIds.add(game.id)
+        if (!prevYourTurnIds.current.has(game.id)) {
+          const opponent = game.player1_id === userId ? game.player2 : game.player1
+          notifyYourTurn(opponent?.username || opponent?.display_name || 'Your partner')
+        }
+      }
+    }
+    prevYourTurnIds.current = newYourTurnIds
+  }, [userId])
+
   // Realtime subscription for games
   useEffect(() => {
     if (!userId) return
@@ -94,6 +127,29 @@ export function useGames(userId: string | undefined) {
       supabase.removeChannel(channel)
     }
   }, [userId, fetchGames])
+
+  // Refetch when app comes back to foreground
+  useEffect(() => {
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        fetchGames()
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibility)
+    return () => document.removeEventListener('visibilitychange', handleVisibility)
+  }, [fetchGames])
+
+  // Trigger notifications when games change
+  useEffect(() => {
+    checkForNotifications(games)
+  }, [games, checkForNotifications])
+
+  const requestNotificationPermission = async () => {
+    if (!('Notification' in window)) return
+    if (Notification.permission === 'default') {
+      await Notification.requestPermission()
+    }
+  }
 
   const createGame = async (joinCode: string) => {
     if (!userId) return { error: new Error('Not logged in') }
@@ -159,5 +215,5 @@ export function useGames(userId: string | undefined) {
     return { error: null, gameId: game.id }
   }
 
-  return { games, loading, createGame, refetch: fetchGames }
+  return { games, loading, createGame, refetch: fetchGames, requestNotificationPermission }
 }
