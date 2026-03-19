@@ -65,7 +65,7 @@ export function GameList({ games, profile, userId, onCreateGame, onSignOut }: Ga
       {/* Header */}
       <div className="sticky top-0 bg-slate-900/95 backdrop-blur border-b border-slate-800 px-4 py-3">
         <div className="flex items-center justify-between max-w-lg mx-auto">
-          <h1 className="text-xl font-bold text-white">Pictionary</h1>
+          <h1 className="text-xl font-bold text-white">Sketchy</h1>
           <button
             onClick={onSignOut}
             className="text-sm text-slate-400 hover:text-white transition-colors"

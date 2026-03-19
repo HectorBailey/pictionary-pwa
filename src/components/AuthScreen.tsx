@@ -40,7 +40,7 @@ export function AuthScreen({ onSendOtp, onVerifyOtp }: AuthScreenProps) {
     <div className="min-h-full flex items-center justify-center bg-slate-900 px-4">
       <div className="w-full max-w-sm space-y-8">
         <div className="text-center">
-          <h1 className="text-4xl font-bold text-white tracking-tight">Pictionary</h1>
+          <h1 className="text-4xl font-bold text-white tracking-tight">Sketchy</h1>
           <p className="mt-2 text-slate-400">Draw and guess with your partner</p>
         </div>
 

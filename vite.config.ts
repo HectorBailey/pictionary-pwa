@@ -11,8 +11,8 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       manifest: {
-        name: 'Pictionary',
-        short_name: 'Pictionary',
+        name: 'Sketchy',
+        short_name: 'Sketchy',
         description: 'Draw and guess with your partner',
         theme_color: '#6366f1',
         background_color: '#0f172a',
