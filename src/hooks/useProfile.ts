@@ -21,17 +21,19 @@ export function useProfile(userId: string | undefined) {
     fetchProfile()
   }, [fetchProfile])
 
-  const updateDisplayName = async (displayName: string) => {
-    if (!userId) return
+  const setUsername = async (username: string) => {
+    if (!userId) return { error: new Error('Not logged in') }
     const { error } = await supabase
       .from('profiles')
-      .update({ display_name: displayName })
+      .update({ username, display_name: username })
       .eq('id', userId)
     if (!error) {
-      setProfile(prev => prev ? { ...prev, display_name: displayName } : null)
+      setProfile(prev => prev ? { ...prev, username, display_name: username } : null)
     }
     return { error }
   }
 
-  return { profile, loading, updateDisplayName, refetch: fetchProfile }
+  const needsUsername = !loading && profile && !profile.username
+
+  return { profile, loading, setUsername, needsUsername, refetch: fetchProfile }
 }

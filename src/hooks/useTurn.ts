@@ -80,21 +80,42 @@ export function useTurn(gameId: string | undefined, userId: string | undefined) 
   const submitGuess = async (guess: string) => {
     if (!turn || !turn.word) return
     const correct = guess.toLowerCase().trim() === turn.word.toLowerCase().trim()
+    const newGuesses = [...turn.guesses, guess]
+    const remaining = turn.guesses_remaining - 1
+
+    // Complete if correct, or out of guesses
+    const isComplete = correct || remaining <= 0
+
     const { error } = await supabase
       .from('turns')
       .update({
         guess,
-        guessed_correctly: correct,
+        guesses: newGuesses,
+        guesses_remaining: remaining,
+        guessed_correctly: isComplete ? correct : null,
+        phase: isComplete ? 'complete' : 'guessing',
+      })
+      .eq('id', turn.id)
+    if (!error) await fetchTurn()
+    return { error, correct, remaining }
+  }
+
+  const giveUp = async () => {
+    if (!turn) return
+    const { error } = await supabase
+      .from('turns')
+      .update({
+        guesses_remaining: 0,
+        guessed_correctly: false,
         phase: 'complete',
       })
       .eq('id', turn.id)
     if (!error) await fetchTurn()
-    return { error, correct }
+    return { error }
   }
 
   const createNextTurn = async () => {
     if (!turn || !userId || !gameId) return
-    // Swap drawer and guesser
     const { error } = await supabase
       .from('turns')
       .insert({
@@ -106,6 +127,8 @@ export function useTurn(gameId: string | undefined, userId: string | undefined) 
         word_options: [],
         strokes: [],
         guess: null,
+        guesses: [],
+        guesses_remaining: 3,
         guessed_correctly: null,
         phase: 'picking',
       })
@@ -125,6 +148,7 @@ export function useTurn(gameId: string | undefined, userId: string | undefined) 
     generateWordOptions,
     submitDrawing,
     submitGuess,
+    giveUp,
     createNextTurn,
     refetch: fetchTurn,
   }

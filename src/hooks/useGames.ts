@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
-import type { Game, Turn } from '../lib/types'
+import type { Game, Turn, GameScores } from '../lib/types'
 
 export function useGames(userId: string | undefined) {
   const [games, setGames] = useState<Game[]>([])
@@ -20,8 +20,8 @@ export function useGames(userId: string | undefined) {
       .order('created_at', { ascending: false })
 
     if (data) {
-      // Fetch latest turn for each game
       const gameIds = data.map(g => g.id)
+      // Fetch all turns for score calculation + latest turn
       const { data: turns } = await supabase
         .from('turns')
         .select('*')
@@ -29,15 +29,31 @@ export function useGames(userId: string | undefined) {
         .order('turn_number', { ascending: false })
 
       const latestTurnByGame = new Map<string, Turn>()
+      const scoresByGame = new Map<string, GameScores>()
+
       for (const turn of (turns ?? [])) {
         if (!latestTurnByGame.has(turn.game_id)) {
           latestTurnByGame.set(turn.game_id, turn)
+        }
+        // Tally scores - guesser wins when guessed correctly
+        if (turn.phase === 'complete' && turn.guessed_correctly) {
+          const scores = scoresByGame.get(turn.game_id) ?? { player1_wins: 0, player2_wins: 0 }
+          const game = data.find(g => g.id === turn.game_id)
+          if (game) {
+            if (turn.guesser_id === game.player1_id) {
+              scores.player1_wins++
+            } else {
+              scores.player2_wins++
+            }
+            scoresByGame.set(turn.game_id, scores)
+          }
         }
       }
 
       const gamesWithTurns = data.map(game => ({
         ...game,
         latest_turn: latestTurnByGame.get(game.id) ?? undefined,
+        scores: scoresByGame.get(game.id) ?? { player1_wins: 0, player2_wins: 0 },
       }))
       setGames(gamesWithTurns)
     }
@@ -75,18 +91,18 @@ export function useGames(userId: string | undefined) {
     }
   }, [userId, fetchGames])
 
-  const createGame = async (opponentEmojiCode: string) => {
+  const createGame = async (joinCode: string) => {
     if (!userId) return { error: new Error('Not logged in') }
 
-    // Find opponent by emoji code
+    // Find opponent by join code
     const { data: opponent, error: findError } = await supabase
       .from('profiles')
       .select('id')
-      .eq('emoji_code', opponentEmojiCode)
+      .eq('join_code', joinCode.toUpperCase().trim())
       .single()
 
     if (findError || !opponent) {
-      return { error: new Error('No player found with that emoji code') }
+      return { error: new Error('No player found with that join code') }
     }
 
     if (opponent.id === userId) {
@@ -115,7 +131,7 @@ export function useGames(userId: string | undefined) {
 
     if (gameError) return { error: gameError }
 
-    // Create first turn - game creator draws first
+    // Create first turn
     const { error: turnError } = await supabase
       .from('turns')
       .insert({
@@ -127,6 +143,8 @@ export function useGames(userId: string | undefined) {
         word_options: [],
         strokes: [],
         guess: null,
+        guesses: [],
+        guesses_remaining: 3,
         guessed_correctly: null,
         phase: 'picking',
       })

@@ -15,7 +15,7 @@ export function GameScreen({ userId }: GameScreenProps) {
   const navigate = useNavigate()
   const {
     turn, loading, isDrawer, isGuesser,
-    pickWord, generateWordOptions, submitDrawing, submitGuess, createNextTurn,
+    pickWord, generateWordOptions, submitDrawing, submitGuess, giveUp, createNextTurn,
   } = useTurn(gameId, userId)
 
   const handleGenerateOptions = useCallback(() => {
@@ -85,6 +85,16 @@ export function GameScreen({ userId }: GameScreenProps) {
             <p className="text-2xl font-bold text-white">Drawing sent!</p>
             <p className="text-slate-400 mt-2">Waiting for them to guess...</p>
             <p className="text-slate-500 mt-1 text-sm">Word: {turn.word}</p>
+            {turn.guesses.length > 0 && (
+              <div className="mt-3 space-y-1">
+                <p className="text-slate-500 text-xs">Their guesses so far:</p>
+                {turn.guesses.map((g, i) => (
+                  <span key={i} className="inline-block text-sm bg-red-900/30 text-red-400 px-3 py-1 rounded-full mx-1">
+                    {g}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
           <div className="w-full max-w-sm">
             <DrawingPlayback strokes={turn.strokes} />
@@ -111,10 +121,13 @@ export function GameScreen({ userId }: GameScreenProps) {
       return withHeader(
         <GuessInput
           strokes={turn.strokes}
+          guesses={turn.guesses}
+          guessesRemaining={turn.guesses_remaining}
           onGuess={async (guess) => {
             const result = await submitGuess(guess)
-            return { error: result?.error, correct: result?.correct }
+            return { error: result?.error, correct: result?.correct, remaining: result?.remaining }
           }}
+          onTimeUp={giveUp}
         />,
         'Your turn to guess'
       )
@@ -140,10 +153,18 @@ export function GameScreen({ userId }: GameScreenProps) {
           <p className="text-slate-400 mt-2">
             The word was <span className="text-white font-medium">{turn.word}</span>
           </p>
-          {turn.guess && (
-            <p className="text-slate-500 mt-1">
-              Guessed: <span className="text-slate-300">{turn.guess}</span>
-            </p>
+          {turn.guesses.length > 0 && (
+            <div className="mt-2 flex gap-2 flex-wrap justify-center">
+              {turn.guesses.map((g, i) => (
+                <span key={i} className={`text-sm px-3 py-1 rounded-full ${
+                  g.toLowerCase().trim() === turn.word?.toLowerCase().trim()
+                    ? 'bg-green-900/30 text-green-400'
+                    : 'bg-red-900/30 text-red-400 line-through'
+                }`}>
+                  {g}
+                </span>
+              ))}
+            </div>
           )}
         </div>
 

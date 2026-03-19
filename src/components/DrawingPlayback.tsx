@@ -3,13 +3,15 @@ import type { Stroke } from '../lib/types'
 
 interface DrawingPlaybackProps {
   strokes: Stroke[]
+  onAnimationComplete?: () => void
 }
 
-export function DrawingPlayback({ strokes }: DrawingPlaybackProps) {
+export function DrawingPlayback({ strokes, onAnimationComplete }: DrawingPlaybackProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
-  const [progress, setProgress] = useState(0) // 0 to total points
+  const [progress, setProgress] = useState(0)
   const animRef = useRef<number | null>(null)
+  const completeCalled = useRef(false)
 
   const totalPoints = strokes.reduce((sum, s) => sum + s.points.length, 0)
 
@@ -62,12 +64,13 @@ export function DrawingPlayback({ strokes }: DrawingPlaybackProps) {
     return () => window.removeEventListener('resize', resize)
   }, [drawUpTo, progress])
 
-  // Animate playback
+  // Animate playback - slower: ~8 seconds at 60fps
   useEffect(() => {
     if (totalPoints === 0) return
     setProgress(0)
+    completeCalled.current = false
 
-    const speed = Math.max(2, Math.ceil(totalPoints / 180)) // Complete in ~3 seconds at 60fps
+    const speed = Math.max(1, Math.ceil(totalPoints / 480))
     let current = 0
 
     const animate = () => {
@@ -76,6 +79,9 @@ export function DrawingPlayback({ strokes }: DrawingPlaybackProps) {
       drawUpTo(current)
       if (current < totalPoints) {
         animRef.current = requestAnimationFrame(animate)
+      } else if (!completeCalled.current) {
+        completeCalled.current = true
+        onAnimationComplete?.()
       }
     }
 
@@ -83,7 +89,7 @@ export function DrawingPlayback({ strokes }: DrawingPlaybackProps) {
     return () => {
       if (animRef.current) cancelAnimationFrame(animRef.current)
     }
-  }, [totalPoints, drawUpTo])
+  }, [totalPoints, drawUpTo, onAnimationComplete])
 
   return (
     <div ref={containerRef} className="relative w-full aspect-square max-h-[60vh] bg-white rounded-xl overflow-hidden">

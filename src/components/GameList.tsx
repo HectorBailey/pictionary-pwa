@@ -7,7 +7,7 @@ interface GameListProps {
   games: Game[]
   profile: Profile | null
   userId: string
-  onCreateGame: (emojiCode: string) => Promise<{ error: Error | null; gameId?: string }>
+  onCreateGame: (joinCode: string) => Promise<{ error: Error | null; gameId?: string }>
   onSignOut: () => void
 }
 
@@ -16,15 +16,25 @@ export function GameList({ games, profile, userId, onCreateGame, onSignOut }: Ga
   const [copied, setCopied] = useState(false)
   const navigate = useNavigate()
 
-  const copyEmojiCode = () => {
+  const copyJoinCode = () => {
     if (!profile) return
-    navigator.clipboard.writeText(profile.emoji_code)
+    navigator.clipboard.writeText(profile.join_code)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
 
   const getOpponent = (game: Game): Profile | undefined => {
     return game.player1_id === userId ? game.player2 : game.player1
+  }
+
+  const getMyScore = (game: Game): number => {
+    if (!game.scores) return 0
+    return game.player1_id === userId ? game.scores.player1_wins : game.scores.player2_wins
+  }
+
+  const getTheirScore = (game: Game): number => {
+    if (!game.scores) return 0
+    return game.player1_id === userId ? game.scores.player2_wins : game.scores.player1_wins
   }
 
   const isYourTurn = (game: Game): boolean => {
@@ -71,17 +81,17 @@ export function GameList({ games, profile, userId, onCreateGame, onSignOut }: Ga
           <div className="bg-slate-800 rounded-2xl p-4 space-y-2">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-white font-medium">{profile.display_name || profile.emoji_code}</p>
-                <p className="text-slate-400 text-sm">Your code</p>
+                <p className="text-white font-medium">{profile.username || profile.display_name}</p>
+                <p className="text-slate-400 text-sm">Join code</p>
               </div>
               <button
-                onClick={copyEmojiCode}
-                className="text-2xl bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded-xl transition-colors"
+                onClick={copyJoinCode}
+                className="font-mono text-lg bg-slate-700 hover:bg-slate-600 px-4 py-2 rounded-xl transition-colors text-white tracking-wider"
               >
-                {copied ? '✓' : profile.emoji_code}
+                {copied ? 'Copied!' : profile.join_code}
               </button>
             </div>
-            <p className="text-xs text-slate-500">Share your emoji code so others can start a game with you</p>
+            <p className="text-xs text-slate-500">Share your join code so others can start a game with you</p>
           </div>
         )}
 
@@ -96,28 +106,34 @@ export function GameList({ games, profile, userId, onCreateGame, onSignOut }: Ga
         {/* Game list */}
         {games.length === 0 ? (
           <p className="text-center text-slate-500 py-8">
-            No games yet. Start one by sharing your emoji code!
+            No games yet. Start one by sharing your join code!
           </p>
         ) : (
           <div className="space-y-2">
             {games.map(game => {
               const opponent = getOpponent(game)
               const yourTurn = isYourTurn(game)
+              const myScore = getMyScore(game)
+              const theirScore = getTheirScore(game)
               return (
                 <button
                   key={game.id}
                   onClick={() => navigate(`/game/${game.id}`)}
                   className="w-full bg-slate-800 hover:bg-slate-750 rounded-2xl p-4 flex items-center gap-4 transition-colors text-left"
                 >
-                  <div className="text-2xl shrink-0">
-                    {opponent?.emoji_code ?? '???'}
-                  </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-white font-medium truncate">
-                      {opponent?.display_name || opponent?.emoji_code || 'Unknown'}
+                      {opponent?.username || opponent?.display_name || 'Unknown'}
                     </p>
                     <p className={`text-sm ${yourTurn ? 'text-indigo-400 font-medium' : 'text-slate-400'}`}>
                       {getTurnLabel(game)}
+                    </p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className="text-sm font-mono text-white">
+                      <span className="text-green-400">{myScore}</span>
+                      <span className="text-slate-500"> - </span>
+                      <span className="text-red-400">{theirScore}</span>
                     </p>
                   </div>
                   {yourTurn && (

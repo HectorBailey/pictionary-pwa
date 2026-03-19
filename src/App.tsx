@@ -3,15 +3,16 @@ import { useAuth } from './hooks/useAuth'
 import { useProfile } from './hooks/useProfile'
 import { useGames } from './hooks/useGames'
 import { AuthScreen } from './components/AuthScreen'
+import { UsernameSetup } from './components/UsernameSetup'
 import { GameList } from './components/GameList'
 import { GameScreen } from './components/GameScreen'
 
 export default function App() {
   const { user, loading: authLoading, sendOtp, verifyOtp, signOut } = useAuth()
-  const { profile } = useProfile(user?.id)
+  const { profile, loading: profileLoading, setUsername, needsUsername } = useProfile(user?.id)
   const { games, createGame } = useGames(user?.id)
 
-  if (authLoading) {
+  if (authLoading || (user && profileLoading)) {
     return (
       <div className="flex items-center justify-center h-full bg-slate-900">
         <p className="text-slate-400">Loading...</p>
@@ -21,6 +22,10 @@ export default function App() {
 
   if (!user) {
     return <AuthScreen onSendOtp={sendOtp} onVerifyOtp={verifyOtp} />
+  }
+
+  if (needsUsername) {
+    return <UsernameSetup onSetUsername={setUsername} />
   }
 
   return (

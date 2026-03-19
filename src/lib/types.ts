@@ -4,8 +4,15 @@ export type GameStatus = 'active' | 'abandoned'
 export interface Profile {
   id: string
   display_name: string
+  username: string | null
+  join_code: string
   emoji_code: string
   created_at: string
+}
+
+export interface GameScores {
+  player1_wins: number
+  player2_wins: number
 }
 
 export interface Game {
@@ -18,6 +25,7 @@ export interface Game {
   player1?: Profile
   player2?: Profile
   latest_turn?: Turn
+  scores?: GameScores
 }
 
 export interface Stroke {
@@ -37,6 +45,8 @@ export interface Turn {
   word_options: string[]
   strokes: Stroke[]
   guess: string | null
+  guesses: string[]
+  guesses_remaining: number
   guessed_correctly: boolean | null
   phase: TurnPhase
   created_at: string
